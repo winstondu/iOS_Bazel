@@ -1,0 +1,5 @@
+[tools]
+# Switching Node with mise also selects its bundled npm/npx.
+node = "26.5.0"
+# The optional MCP verification client uses Python's standard-library tomllib.
+python = "3.13.14"

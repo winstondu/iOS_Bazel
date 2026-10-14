@@ -1,0 +1,13 @@
+{
+  "swift.disableSwiftPackageManagerIntegration": true,
+  "swift.disableAutoResolve": true,
+  "swift.disableSwiftlyInstallPrompt": true,
+  "swift.autoGenerateLaunchConfigurations": false,
+  "swift.sourcekit-lsp.serverPath": "${workspaceFolder}/tools/sourcekit-lsp.sh",
+  "swift.sourcekit-lsp.backgroundIndexing": "on",
+  "swift.sourcekit-lsp.trace.server": "messages",
+  "swift.debugger.debugAdapter": "lldb-dap",
+  "files.exclude": { "**/bazel-*": true, "**/.tools": true },
+  "search.exclude": { "**/bazel-*": true, "**/.tools": true },
+  "[swift]": { "files.autoSave": "afterDelay" }
+}

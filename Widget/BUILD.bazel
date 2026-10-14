@@ -1,0 +1,41 @@
+load("@build_bazel_rules_apple//apple:apple.bzl", "local_provisioning_profile")
+load("@build_bazel_rules_apple//apple:ios.bzl", "ios_extension")
+load("@build_bazel_rules_swift//swift:swift.bzl", "swift_library")
+load("@rules_xcodeproj//xcodeproj:defs.bzl", "xcode_provisioning_profile")
+
+# See App/BUILD.bazel: the widget extension needs its own managed profile.
+DEVELOPMENT_TEAM_ID = "6KR5UHZLG2"
+
+local_provisioning_profile(
+    name = "device_profile",
+    profile_name = "iOS Team Provisioning Profile: com.example.bazelhelloworld.widget",
+    team_id = DEVELOPMENT_TEAM_ID,
+)
+
+xcode_provisioning_profile(
+    name = "xcode_device_profile",
+    managed_by_xcode = True,
+    provisioning_profile = ":device_profile",
+)
+
+swift_library(
+    name = "HelloWorldWidgetLibrary",
+    srcs = ["HelloWorldWidget.swift"],
+    copts = ["-application-extension"],
+    module_name = "HelloWorldWidget",
+    visibility = ["//visibility:private"],
+)
+
+ios_extension(
+    name = "HelloWorldWidget",
+    bundle_id = "com.example.bazelhelloworld.widget",
+    families = ["iphone", "ipad"],
+    infoplists = ["Info.plist"],
+    minimum_os_version = "17.0",
+    provisioning_profile = select({
+        "//:ios_device": ":xcode_device_profile",
+        "//conditions:default": None,
+    }),
+    visibility = ["//visibility:public"],
+    deps = [":HelloWorldWidgetLibrary"],
+)

@@ -1,0 +1,34 @@
+diff --git a/Sources/SourceKitLSP/SourceKitLSPClient.swift b/Sources/SourceKitLSP/SourceKitLSPClient.swift
+index 3351893..2fc90fd 100644
+--- a/Sources/SourceKitLSP/SourceKitLSPClient.swift
++++ b/Sources/SourceKitLSP/SourceKitLSPClient.swift
+@@ -149,6 +149,7 @@ actor SourceKitLSPClient {
+                         "contentFormat": ["markdown", "plaintext"]
+                     ],
+                     "publishDiagnostics": [:],
++                    "diagnostic": ["dynamicRegistration": false, "relatedDocumentSupport": true],
+                     "rename": [
+                         "dynamicRegistration": false
+                     ],
+@@ -434,9 +435,18 @@ actor SourceKitLSPClient {
+ 
+     func diagnostics(fileURL: URL, timeout: TimeInterval = 5) async throws -> [LSPDiagnostic] {
+         let document = try await prepareDocument(fileURL)
+-        latestDiagnostics.removeValue(forKey: document.uri)
+-
+-        return try await waitForDiagnostics(uri: document.uri, timeout: timeout)
++        let result = try await sendRequest(
++            method: "textDocument/diagnostic",
++            params: ["textDocument": ["uri": .string(document.uri)]]
++        )
++        guard let report = result.objectValue,
++              let items = report.array("items") else {
++            throw SwiftMCPError.communicationError("Invalid document diagnostic report from SourceKit-LSP")
++        }
++        latestRawDiagnostics[document.uri] = items
++        let diagnostics = try items.map { try LSPDiagnostic(jsonValue: $0) }
++        latestDiagnostics[document.uri] = diagnostics
++        return diagnostics
+     }
+ 
+     func shutdown() async {

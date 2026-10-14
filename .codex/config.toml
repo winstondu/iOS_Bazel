@@ -1,0 +1,6 @@
+[mcp_servers.swift]
+command = "/bin/bash"
+args = ["-c", 'exec "$(git rev-parse --show-toplevel)/tools/swift-mcp.sh"']
+startup_timeout_sec = 60
+tool_timeout_sec = 180
+

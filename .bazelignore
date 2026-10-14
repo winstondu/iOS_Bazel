@@ -1,0 +1,7 @@
+# Directories Bazel must not load as packages of this workspace. Worktrees are
+# separate checkouts with their own MODULE.bazel and output base.
+.worktrees
+.tools
+.build
+.swiftpm
+.artifacts

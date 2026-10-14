@@ -1,0 +1,26 @@
+common --enable_bzlmod
+common --announce_rc
+# Give actions a fixed PATH. Otherwise version-manager shims on the user's PATH
+# (mise, asdf) run inside the sandbox and fail with "$HOME is not defined".
+common --incompatible_strict_action_env
+
+# Keep Swift index data available to Xcode and SourceKit-LSP.
+common --features=swift.index_while_building
+common --features=swift.use_global_index_store
+common --features=swift.emit_swiftsourceinfo
+
+build:simulator --ios_multi_cpus=sim_arm64
+run:simulator --ios_multi_cpus=sim_arm64
+
+build:device --ios_multi_cpus=arm64
+run:device --ios_multi_cpus=arm64
+
+# BSP compiler arguments and index preparation must use the same iOS simulator.
+common:index_build --ios_multi_cpus=sim_arm64
+common:index_build --compilation_mode=dbg
+common:index_build --features=-swift.opt_uses_wmo
+common:index_build --experimental_convenience_symlinks=ignore
+common:index_build --show_result=0
+common:index_build --noshow_progress
+common:index_build --noannounce_rc
+common:index_build --color=no

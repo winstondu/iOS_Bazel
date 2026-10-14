@@ -1,0 +1,33 @@
+load(
+    "@rules_xcodeproj//xcodeproj:defs.bzl",
+    "top_level_target",
+    "xcodeproj",
+)
+
+# True inside Apple bundling rules when building for a physical iOS device
+# (rules_apple's rule transition selects an apple_support platform with the
+# `device` constraint). Used to attach provisioning profiles only there, so
+# simulator builds never depend on locally installed profiles.
+config_setting(
+    name = "ios_device",
+    constraint_values = [
+        "@platforms//os:ios",
+        "@apple_support//constraints:device",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+xcodeproj(
+    name = "xcodeproj",
+    project_name = "BazelHelloWorld",
+    tags = ["manual"],
+    top_level_targets = [
+        top_level_target(
+            "//App:HelloWorld",
+            target_environments = [
+                "device",
+                "simulator",
+            ],
+        ),
+    ],
+)

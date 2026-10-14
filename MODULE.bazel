@@ -1,0 +1,56 @@
+module(
+    name = "bazel_hello_world",
+    version = "0.1.0",
+)
+
+# Bazel 8.8.0 keeps this project on the latest 8.x line tested by SourceKit BSP.
+# The selected Apple, Swift, and Xcode project rules also support Bazel 8.x.
+bazel_dep(name = "apple_support", version = "2.8.1")
+# Already resolved transitively at 1.0.0; declared directly so root BUILD
+# config_settings can reference @platforms constraints.
+bazel_dep(name = "platforms", version = "1.0.0")
+bazel_dep(
+    name = "rules_apple",
+    version = "4.5.3",
+    repo_name = "build_bazel_rules_apple",
+)
+bazel_dep(
+    name = "rules_swift",
+    version = "3.6.1",
+    repo_name = "build_bazel_rules_swift",
+)
+bazel_dep(name = "rules_swift_package_manager", version = "1.23.0")
+bazel_dep(name = "rules_xcodeproj", version = "4.1.0")
+bazel_dep(name = "sourcekit_bazel_bsp", version = "0.8.3")
+
+http_archive = use_repo_rule(
+    "@bazel_tools//tools/build_defs/repo:http.bzl",
+    "http_archive",
+)
+
+http_archive(
+    name = "sourcekit_bsp_prebuilt",
+    build_file_content = """
+exports_files([
+    "sourcekit-bazel-bsp",
+    "sourcekit-lsp",
+])
+""",
+    sha256 = "c9329c4a95126f60fbdc576561ae66b4bc9354b3e2f059e128d1e3a386529bfc",
+    urls = ["https://github.com/spotify/sourcekit-bazel-bsp/releases/download/0.8.3/sourcekit-bazel-bsp-0.8.3-darwin.zip"],
+)
+
+swift_deps = use_extension(
+    "@rules_swift_package_manager//:extensions.bzl",
+    "swift_deps",
+)
+swift_deps.from_package(
+    resolved = "//:Package.resolved",
+    swift = "//:Package.swift",
+)
+use_repo(
+    swift_deps,
+    "swift_package",
+    "swiftpkg_nuke",
+    "swiftpkg_swiftmacros",
+)

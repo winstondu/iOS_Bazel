@@ -1,0 +1,11 @@
+load("@sourcekit_bazel_bsp//rules:setup_sourcekit_bsp.bzl", "setup_sourcekit_bsp")
+
+setup_sourcekit_bsp(
+    name = "setup_sourcekit_bsp",
+    sourcekit_bazel_bsp = "@sourcekit_bsp_prebuilt//:sourcekit-bazel-bsp",
+    targets = ["//App:HelloWorld"],
+    files_to_watch = ["App/**/*.swift", "Widget/**/*.swift"],
+    index_flags = ["config=index_build"],
+    compile_top_level = True,
+    bazel_wrapper = "bazelisk",
+)

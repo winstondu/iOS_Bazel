@@ -1,0 +1,48 @@
+load("@build_bazel_rules_apple//apple:apple.bzl", "local_provisioning_profile")
+load("@build_bazel_rules_apple//apple:ios.bzl", "ios_application")
+load("@build_bazel_rules_swift//swift:swift.bzl", "swift_library")
+load("@rules_xcodeproj//xcodeproj:defs.bzl", "xcode_provisioning_profile")
+
+# Development signing for physical devices. Xcode creates and renews the
+# managed profile (in ~/Library/Developer/Xcode/UserData/Provisioning Profiles)
+# for the personal team when building the generated project for a device;
+# Bazel then finds that same profile by name and signs with it.
+DEVELOPMENT_TEAM_ID = "6KR5UHZLG2"
+
+local_provisioning_profile(
+    name = "device_profile",
+    profile_name = "iOS Team Provisioning Profile: com.example.bazelhelloworld",
+    team_id = DEVELOPMENT_TEAM_ID,
+)
+
+xcode_provisioning_profile(
+    name = "xcode_device_profile",
+    managed_by_xcode = True,
+    provisioning_profile = ":device_profile",
+)
+
+swift_library(
+    name = "HelloWorldLibrary",
+    srcs = glob(["**/*.swift"]),
+    module_name = "HelloWorld",
+    visibility = ["//visibility:private"],
+    deps = [
+        "@swiftpkg_nuke//:NukeUI",
+        "@swiftpkg_swiftmacros//:SwiftMacros",
+    ],
+)
+
+ios_application(
+    name = "HelloWorld",
+    bundle_id = "com.example.bazelhelloworld",
+    extensions = ["//Widget:HelloWorldWidget"],
+    families = ["iphone", "ipad"],
+    infoplists = ["Info.plist"],
+    minimum_os_version = "17.0",
+    provisioning_profile = select({
+        "//:ios_device": ":xcode_device_profile",
+        "//conditions:default": None,
+    }),
+    visibility = ["//visibility:public"],
+    deps = [":HelloWorldLibrary"],
+)
