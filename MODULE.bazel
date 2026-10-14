@@ -31,10 +31,7 @@ http_archive = use_repo_rule(
 http_archive(
     name = "sourcekit_bsp_prebuilt",
     build_file_content = """
-exports_files([
-    "sourcekit-bazel-bsp",
-    "sourcekit-lsp",
-])
+exports_files(["sourcekit-bazel-bsp"])
 """,
     sha256 = "c9329c4a95126f60fbdc576561ae66b4bc9354b3e2f059e128d1e3a386529bfc",
     urls = ["https://github.com/spotify/sourcekit-bazel-bsp/releases/download/0.8.3/sourcekit-bazel-bsp-0.8.3-darwin.zip"],

@@ -3,7 +3,6 @@
   "swift.disableAutoResolve": true,
   "swift.disableSwiftlyInstallPrompt": true,
   "swift.autoGenerateLaunchConfigurations": false,
-  "swift.sourcekit-lsp.serverPath": "${workspaceFolder}/tools/sourcekit-lsp.sh",
   "swift.sourcekit-lsp.backgroundIndexing": "on",
   "swift.sourcekit-lsp.trace.server": "messages",
   "swift.debugger.debugAdapter": "lldb-dap",

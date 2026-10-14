@@ -5,21 +5,21 @@ tooling_root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$tooling_root"
 mcp_revision=b5b99b3ea8b28e8b46545a2f3ace2a0114ed5514
 mkdir -p .tools .vscode
-# Bazel owns the release URL and checksum in MODULE.bazel. Reuse its download
-# for both the BSP and LSP instead of maintaining a second version pin here.
+# Bazel owns the BSP release URL and checksum in MODULE.bazel. VS Code and the MCP
+# bridge both use the selected Xcode's SourceKit-LSP, which discovers this BSP.
 bazelisk run //tools:setup_sourcekit_bsp
-lsp_file="$(bazelisk cquery @sourcekit_bsp_prebuilt//:sourcekit-lsp --output=files)"
-execution_root="$(bazelisk info execution_root)"
-install -m 755 "$execution_root/$lsp_file" .tools/sourcekit-lsp.new
-mv -f .tools/sourcekit-lsp.new .tools/sourcekit-lsp
+# Earlier versions copied the release's LSP here; nothing uses it now.
+rm -f .tools/sourcekit-lsp
 # Write editor settings before the MCP bridge build so a failure there cannot leave
-# VS Code on its default toolchain LSP. The template uses ${workspaceFolder}, so the
-# settings never contain this checkout's absolute path.
+# VS Code without them. VS Code starts its own toolchain's SourceKit-LSP, which finds
+# the BSP through .bsp/skbsp.json and .sourcekit-lsp/config.json.
 python3 - "$tooling_root" <<'PY'
 import json, pathlib, sys
 root = pathlib.Path(sys.argv[1])
 path = root / '.vscode/settings.json'
 settings = json.loads(path.read_text()) if path.exists() else {}
+# Drop the deprecated server override written by earlier versions of this script.
+settings.pop('swift.sourcekit-lsp.serverPath', None)
 settings.update(json.loads((root / 'tools/vscode-settings.json').read_text()))
 path.write_text(json.dumps(settings, indent=2) + '\n')
 PY

@@ -308,7 +308,7 @@ flowchart LR
 
 Installation happens when you run setup. Server processes start later, when a client opens the workspace. Each client starts its own LSP/BSP processes. The following code is already used by the repository; these are explanations of the setup steps, not additional scripts to install.
 
-### 1. Where the BSP and LSP binaries come from
+### 1. Where the BSP binary comes from
 
 [MODULE.bazel](MODULE.bazel) declares both Spotify's Bazel setup rules and a prebuilt release archive:
 
@@ -323,10 +323,7 @@ http_archive = use_repo_rule(
 http_archive(
     name = "sourcekit_bsp_prebuilt",
     build_file_content = """
-exports_files([
-    "sourcekit-bazel-bsp",
-    "sourcekit-lsp",
-])
+exports_files(["sourcekit-bazel-bsp"])
 """,
     sha256 = "c9329c4a95126f60fbdc576561ae66b4bc9354b3e2f059e128d1e3a386529bfc",
     urls = ["https://github.com/spotify/sourcekit-bazel-bsp/releases/download/0.8.3/sourcekit-bazel-bsp-0.8.3-darwin.zip"],
@@ -335,11 +332,11 @@ exports_files([
 
 - `bazel_dep` makes the `setup_sourcekit_bsp` rule available.
 - `http_archive` tells Bazel to download the macOS release from GitHub, verify its SHA-256, and unpack it into Bazel's external-repository cache.
-- `exports_files` makes the two executables addressable as Bazel labels.
+- `exports_files` makes the BSP executable addressable as a Bazel label.
 
-The archive is fetched when a command first needs that repository, and reused on subsequent runs. This setup uses the prebuilt Spotify binaries.
+The archive is fetched when a command first needs that repository, and reused on subsequent runs. This setup uses the prebuilt Spotify BSP. The archive also contains a `sourcekit-lsp` build, but nothing here uses it: VS Code and the Codex bridge both run the selected Xcode's SourceKit-LSP, which discovers the BSP on its own.
 
-### 2. Install the binaries and generate workspace configuration
+### 2. Install the BSP and generate workspace configuration
 
 [tools/BUILD.bazel](tools/BUILD.bazel) connects the downloaded BSP executable to this app's build graph:
 
@@ -368,18 +365,9 @@ Here is the installation portion of [tools/setup-tooling.sh](tools/setup-tooling
 ```sh
 mkdir -p .tools .vscode
 bazelisk run //tools:setup_sourcekit_bsp
-
-lsp_file="$(bazelisk cquery @sourcekit_bsp_prebuilt//:sourcekit-lsp --output=files)"
-execution_root="$(bazelisk info execution_root)"
-install -m 755 "$execution_root/$lsp_file" .tools/sourcekit-lsp.new
-mv -f .tools/sourcekit-lsp.new .tools/sourcekit-lsp
 ```
 
-- `bazelisk run //tools:setup_sourcekit_bsp` executes Spotify's setup rule. It copies the BSP from Bazel's runfiles into the checkout and writes the connection files.
-- `bazelisk cquery ... --output=files` locates the matching LSP executable inside the same downloaded archive.
-- `bazelisk info execution_root` turns that relative path into a filesystem path.
-- `install -m 755` copies the LSP into `.tools/` with executable permissions.
-- `mv -f` swaps the new copy into place without rewriting an executable that may be running.
+`bazelisk run //tools:setup_sourcekit_bsp` executes Spotify's setup rule. It copies the BSP from Bazel's runfiles into the checkout and writes the connection files below.
 
 | Installed/generated path, relative to the checkout | Purpose |
 | --- | --- |
@@ -387,8 +375,7 @@ mv -f .tools/sourcekit-lsp.new .tools/sourcekit-lsp
 | `.bsp/skbsp.json` | BSP discovery metadata and the command SourceKit-LSP will launch |
 | `.bsp/skbsp_generated/` | Generated Bazel helper package used by the BSP |
 | `.sourcekit-lsp/config.json` | Build-server selection, background preparation, and index path mappings |
-| `.tools/sourcekit-lsp` | Matching LSP executable copied from the release archive |
-| `.vscode/settings.json` | Settings from `tools/vscode-settings.json` merged into any personal settings; the LSP launcher is `${workspaceFolder}`-relative |
+| `.vscode/settings.json` | Settings from `tools/vscode-settings.json` merged into any personal settings |
 | `.tools/swift-mcp-server/.build/release/swift-mcp-server` | Native MCP bridge used by Codex |
 
 #### Index path mapping
@@ -409,7 +396,7 @@ The rule calls `bazelisk info output_base` and points every entry at the BSP's *
 - **Set it up correctly on the first run.** Run `./tools/setup-tooling.sh` from the final checkout location, before opening an editor. The editor's first SourceKit-LSP launch then uses the right mapping, and preparation fills the directories it points at. Opening the folder first, or copying `.sourcekit-lsp/` from another checkout, gives an LSP that starts but finds no symbols.
 - **Use the same Bazel startup options as the BSP.** The rule and the BSP both run `bazelisk` with no `--output_base` or `--output_user_root` override. Adding one to only one side, for example in a personal `~/.bazelrc`, makes the map point to an empty directory.
 - **Rerun setup after moving or recloning the checkout,** and in each new worktree. The path changes, so the hash changes. Setup always rewrites the mapping.
-- **Check it.** `grep "$(md5 -qs "$(pwd -P)")" .sourcekit-lsp/config.json` should match every entry. [tools/sourcekit-lsp.sh](tools/sourcekit-lsp.sh) runs the same check on every launch. If the map belongs to another path, it exits with a message to rerun setup instead of serving empty results.
+- **Check it.** `grep "$(md5 -qs "$(pwd -P)")" .sourcekit-lsp/config.json` should match every entry. [tools/swift-mcp.sh](tools/swift-mcp.sh) runs the same check every time Codex starts the bridge. If the map belongs to another path, it exits with a message to rerun setup instead of serving empty results. VS Code starts SourceKit-LSP itself, so nothing checks the map there; empty results in VS Code after a move mean setup needs to be rerun.
 - **Don't hand-edit it.** Change `tools/BUILD.bazel` and rerun the setup rule.
 
 #### Generated and ignored files
@@ -418,7 +405,7 @@ Everything in the table above is generated per checkout and listed in [.gitignor
 
 The downloaded archive is managed by Bazel's cache; the executable copies above belong to this checkout. You can inspect the cache locations with `bazel info output_base` and `bazel info execution_root`. Setup then builds the MCP bridge and writes the editor settings:
 
-1. Merge `tools/vscode-settings.json` into `.vscode/settings.json`. This happens before the MCP build, so a failure there can't leave VS Code on its default toolchain LSP.
+1. Merge `tools/vscode-settings.json` into `.vscode/settings.json`. This happens before the MCP build, so a failure there can't leave VS Code without them. Setup also removes `swift.sourcekit-lsp.serverPath`, which earlier versions wrote.
 2. Clone [Swift MCP Server](https://github.com/anvyxhq/swift-mcp-server) into `.tools/swift-mcp-server/`.
 3. Check out commit `b5b99b3ea8b28e8b46545a2f3ace2a0114ed5514`.
 4. Apply the [diagnostics patch](tools/swift-mcp-diagnostics.patch).
@@ -428,29 +415,21 @@ At this point installation is complete and no persistent BSP process has been la
 
 ### 3. VS Code or Codex starts SourceKit-LSP
 
-Setup writes the following settings into `.vscode/settings.json`. The Swift extension expands `${workspaceFolder}` itself, so the file has no absolute paths and survives moving the checkout:
+Neither client is pointed at a custom LSP executable. Both start the SourceKit-LSP in the Xcode chosen by `xcode-select`, which is the same toolchain Bazel compiles with. That LSP finds the BSP through two files written by setup:
+
+- `.bsp/skbsp.json` is standard BSP discovery metadata, holding the command that launches `.bsp/sourcekit-bazel-bsp`.
+- `.sourcekit-lsp/config.json` sets `"defaultWorkspaceType": "buildServer"`, turns on background preparation, and carries the index prefix map.
+
+VS Code's Swift extension starts its toolchain's `sourcekit-lsp` and sends an LSP `initialize` request with the repository as its workspace. Setup writes these settings to `.vscode/settings.json`, so the extension doesn't treat the root `Package.swift` as the project:
 
 ```json
 {
-  "swift.sourcekit-lsp.serverPath": "${workspaceFolder}/tools/sourcekit-lsp.sh",
   "swift.disableSwiftPackageManagerIntegration": true,
   "swift.sourcekit-lsp.backgroundIndexing": "on"
 }
 ```
 
-VS Code's Swift extension starts that wrapper and sends an LSP `initialize` request with the repository as its workspace. The launch portion of [tools/sourcekit-lsp.sh](tools/sourcekit-lsp.sh) is:
-
-```sh
-tooling_root="$(cd "$(dirname "$0")/.." && pwd)"
-cd "$tooling_root"
-export DEVELOPER_DIR="${DEVELOPER_DIR:-$(xcode-select -p)}"
-export SOURCEKIT_TOOLCHAIN_PATH="$DEVELOPER_DIR/Toolchains/XcodeDefault.xctoolchain"
-exec "$tooling_root/.tools/sourcekit-lsp" "$@"
-```
-
-- `tooling_root` derives the repository root from the script's own location, and `cd` runs the LSP from there. The full script also checks that setup has completed.
-- `DEVELOPER_DIR` and `SOURCEKIT_TOOLCHAIN_PATH` select the same Xcode toolchain that Bazel uses.
-- `exec` replaces the wrapper process with the LSP executable and preserves the client's stdin/stdout connection.
+The Swift extension has deprecated `swift.sourcekit-lsp.serverPath`. This project used to point that setting at a wrapper script and a `sourcekit-lsp` copied from Spotify's release archive; both have been removed. If the BSP doesn't attach, check the **SourceKit Language Server** output channel. The selected Xcode's LSP must support BSP discovery and `.sourcekit-lsp/config.json`, which Swift 6.1 and later toolchains do.
 
 For Codex, [.codex/config.toml](.codex/config.toml) contains:
 
@@ -463,7 +442,7 @@ tool_timeout_sec = 180
 ```
 
 1. Codex runs the configured command from the project.
-2. `git rev-parse` locates the checkout root, and [tools/swift-mcp.sh](tools/swift-mcp.sh) sets `SOURCEKIT_LSP_PATH` to the same LSP wrapper shown above.
+2. `git rev-parse` locates the checkout root. [tools/swift-mcp.sh](tools/swift-mcp.sh) checks the index prefix map, then sets `SOURCEKIT_LSP_PATH` to `$(xcrun --find sourcekit-lsp)`, the same LSP VS Code uses. The explicit path is needed because the bridge's own search checks `/Applications/Xcode.app` but not other Xcode installations such as `Xcode-beta.app`.
 3. It starts `swift-mcp-server --transport stdio --workspace <checkout>`.
 4. The bridge translates Codex's MCP calls into LSP requests.
 
@@ -537,7 +516,7 @@ See [Spotify's setup guide](https://github.com/spotify/sourcekit-bazel-bsp) and 
 2. Open the entire repository with `code .`.
 3. Run **Swift: Restart LSP Server** from the Command Palette and let indexing finish.
 
-The generated `.vscode/settings.json` selects `tools/sourcekit-lsp.sh` and disables standalone SwiftPM integration. The root `Package.swift` declares external dependencies; Bazel builds the app.
+The generated `.vscode/settings.json` disables standalone SwiftPM integration; the extension runs the selected Xcode's SourceKit-LSP, which attaches to the Bazel BSP. The root `Package.swift` declares external dependencies; Bazel builds the app.
 
 ### Swift macro expansion
 
@@ -620,7 +599,7 @@ Inspect VS Code's **Swift**, **SourceKit Language Server**, and **SourceKit-LSP 
 | “No such module”, empty definitions, or empty workspace symbols | Wait for indexing, check the indexing output, and confirm `bazel build --config=simulator //App:HelloWorld` succeeds. Document symbols alone do not prove cross-module indexing works. |
 | Setup works in a terminal but not an editor | Check the editor's inherited PATH can find `bazelisk`; restart it from the configured shell. Use mise activation or `mise exec` for Node/npm/Python tooling. |
 | A sandboxed action (for example entitlements processing) reports `$HOME is not defined` | A version-manager shim (mise, asdf) on `PATH` ran inside the sandbox. `.bazelrc` sets `--incompatible_strict_action_env` so actions get a fixed `PATH`. Don't remove that flag, and don't override it in a personal bazelrc. |
-| `tools/sourcekit-lsp.sh` says the index prefix map belongs to another checkout path | The checkout moved or `.sourcekit-lsp/` came from elsewhere. Rerun `./tools/setup-tooling.sh` and restart the LSP. See [index path mapping](#index-path-mapping). |
+| `tools/swift-mcp.sh` says the index prefix map belongs to another checkout path, or VS Code finds no symbols after the checkout moved | The checkout moved or `.sourcekit-lsp/` came from elsewhere. Rerun `./tools/setup-tooling.sh` and restart the LSP. See [index path mapping](#index-path-mapping). |
 | `mise install` fails for Node with `gpg: Can't check signature: No public key`, often after `server 'keyboxd' is older than us` | mise checks Node's signature with the GnuPG on `PATH`. After a Homebrew GnuPG upgrade, an older `keyboxd` daemon may still be running, and verification can't see the keys mise imports. Run `gpgconf --kill keyboxd` (or `gpgconf --kill all`) and rerun `mise install`. Don't turn off `node.verify`. |
 | Checkout or selected Xcode changed | Rerun setup, reopen the root, and restart servers. Generated LSP prefix maps contain machine-local absolute paths; VS Code settings use `${workspaceFolder}`. |
 | Targets, source membership, dependencies, or indexing flags changed | Run `bazel run //tools:setup_sourcekit_bsp` and restart the LSP/MCP servers. This avoids depending on live graph refresh behavior in the pinned BSP. |
@@ -644,3 +623,9 @@ On 2026-10-13, setup was also checked in a fresh in-repo worktree:
 - The worktree and its Bazel output bases were removed afterwards.
 
 Setup was rerun locally and the stale VS Code LSP restarted. Project tools/settings and mise's project trust were updated; Xcode selection, global editor configuration, and signing accounts were unchanged.
+
+On 2026-10-13, the deprecated `swift.sourcekit-lsp.serverPath` override was removed. VS Code and the Codex bridge now both run the selected Xcode's SourceKit-LSP instead of `tools/sourcekit-lsp.sh` and the copy at `.tools/sourcekit-lsp`.
+
+- With Xcode 27.0 beta's `sourcekit-lsp` started from the repository root, the way the Swift extension starts it, the server attached to the Bazel BSP without any extra configuration. `ContentView` in `App/HelloWorldApp.swift` resolved to `App/ContentView.swift`. `LazyImage` in `App/ContentView.swift` resolved into NukeUI's source in the BSP's output base.
+- Setup reran cleanly through the BSP step and removed the override from `.vscode/settings.json`; `MODULE.bazel.lock` was unchanged. `./scripts/run-simulator.sh` still built, installed, and launched the app.
+- `tools/swift-mcp.sh` passed its checks and resolved `SOURCEKIT_LSP_PATH` to Xcode-beta's `sourcekit-lsp`. The bridge itself couldn't be exercised end to end because it still doesn't compile with this beta toolchain (see above).
