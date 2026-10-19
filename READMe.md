@@ -609,21 +609,6 @@ The BSP has a separate Bazel output base, so an ordinary app build can be warm w
 
 ## Verified setup
 
-On 2026-09-12, VS Code's Swift extension passed the macro expansion check for `#Obfuscate` in a new VS Code window after Bazel BSP preparation completed. The generated Swift expansion was visible through **Refactor: Expand Macro**. Bazel's simulator build passed, including `SwiftMacrosPlugin`; the first build required `--action_env=HOME=/Users/winstondu` because the sandbox omitted `HOME`. Bazelisk 1.29.0 was installed with Homebrew and selected the pinned Bazel 8.8.0. The Swift LSP/BSP tooling was regenerated locally; Xcode selection, global editor configuration, and signing accounts were unchanged.
-
-On 2026-10-13, the voice recorder was removed to keep this a minimal Hello World sample. `./scripts/run-simulator.sh` built the app and embedded widget, installed it, and launched it on an iPhone simulator; `.bazelrc` now sets `--incompatible_strict_action_env`, so builds no longer need `HOME` passed in. The repository history was squashed into a single initial commit.
-
-On 2026-10-13, a clean `mise install` of Node 26.5.0 failed with `No public key` because a `keyboxd` 2.4.8 daemon was running with GnuPG 2.5.21. Running `gpgconf --kill keyboxd` fixed it; this restarted the per-user daemon and changed no keys or settings.
-
-On 2026-10-13, setup was also checked in a fresh in-repo worktree:
-
-- The prefix map was correct on the first run, the app built and launched, and the full `verify-sourcekit.py` check passed.
-- The SwiftPM `build.db` disk I/O error stopped setup before it wrote `.vscode/settings.json`. That is why the main checkout had no VS Code settings and VS Code used Xcode's built-in LSP.
-- Setup now writes settings first and retries the MCP build from clean. `.vscode/settings.json` no longer contains absolute paths.
-- The worktree and its Bazel output bases were removed afterwards.
-
-Setup was rerun locally and the stale VS Code LSP restarted. Project tools/settings and mise's project trust were updated; Xcode selection, global editor configuration, and signing accounts were unchanged.
-
 On 2026-10-13, the deprecated `swift.sourcekit-lsp.serverPath` override was removed. VS Code and the Codex bridge now both run the selected Xcode's SourceKit-LSP instead of `tools/sourcekit-lsp.sh` and the copy at `.tools/sourcekit-lsp`.
 
 - With Xcode 27.0 beta's `sourcekit-lsp` started from the repository root, the way the Swift extension starts it, the server attached to the Bazel BSP without any extra configuration. `ContentView` in `App/HelloWorldApp.swift` resolved to `App/ContentView.swift`. `LazyImage` in `App/ContentView.swift` resolved into NukeUI's source in the BSP's output base.
